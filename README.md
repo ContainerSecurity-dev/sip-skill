@@ -17,11 +17,13 @@ The agent should produce actionable file edits and workflow updates, keeping cha
 
 - Enforce a 5-day dependency cooldown in `.npmrc`:
   - `min-release-age=5`
+- Current npm interprets `min-release-age` in days.
 - Disable lifecycle scripts in `.npmrc`:
   - `ignore-scripts=true`
 - Use locked installs in CI:
   - `npm ci --ignore-scripts`
 - Preserve and rely on `package-lock.json` for deterministic installs.
+- Do not add cooldown exclusions automatically. If a required security update is blocked, report the package and recommend an explicit `min-release-age-exclude` exception.
 
 ### SIP iii — Harden Container Builds
 
@@ -31,9 +33,8 @@ The agent should produce actionable file edits and workflow updates, keeping cha
   - Runtime stage: `dhi.io/node:<version>-<distro>`
 - Keep runtime image minimal and non-root by default.
 - Authenticate to DHI in CI via `docker/login-action` using secrets (never Docker build args for credentials).
-- Include:
+- Include this declaration in every stage that must be scanned because Dockerfile `ARG` scope is stage-specific:
   - `ARG BUILDKIT_SBOM_SCAN_STAGE=true`
-  to ensure SBOM stage coverage in build metadata.
 
 ### SIP iv — Generate SBOM + Provenance Attestations
 
@@ -45,6 +46,8 @@ The agent should produce actionable file edits and workflow updates, keeping cha
 - Use build output digest (`steps.<id>.outputs.digest`) as the immutable artifact reference for downstream steps.
 
 ## Baseline GitHub Actions Pattern (ii–iv)
+
+The placeholders below are documentation only. When modifying an executable workflow, use verified full commit SHAs. Never write `<PINNED-SHA>` or another placeholder into a real workflow; if a SHA cannot be verified, preserve the existing reference and report it as a manual action.
 
 ```yaml
 name: SIP Supply Chain (ii-iv)

@@ -1,17 +1,42 @@
-# SIP Skill: Security Immediate Plan (ii–iv)
+# SIP Skill: Security Immediate Plan
 
-This repository provides an AI agentic skill focused on SIP controls **ii–iv**:
+This repository provides an agentic skill for the complete SIP framework:
 
-1. Freeze unvetted dependencies  
-2. Harden container builds  
-3. Generate SBOM and provenance attestations
+1. Isolate local AI agents.
+2. Freeze unvetted dependencies.
+3. Harden container builds.
+4. Generate SBOM and provenance attestations.
+5. Scan the attested SBOM and gate releases.
+
+SIP follows the software supply chain in order:
+
+**AI agent → dependencies → container build → attestations → vulnerability gate**
+
+Each control reduces the risk passed to the next. The final scan consumes the SBOM generated during the build, and promotion reuses the exact digest that passed the gate.
 
 ## Skill Intent
 
-Use this skill when asked to secure a Node.js container supply chain in CI/CD.  
+Invoke `$sip` explicitly when applying the framework to a Node.js container supply chain. Implicit invocation is disabled because SIP can modify agent isolation, dependencies, Dockerfiles, and CI/CD workflows.
 The agent should produce actionable file edits and workflow updates, keeping changes minimal and deterministic.
 
 ## Operating Rules for the Agent
+
+### SIP i — Isolate Local AI Agents
+
+- Run local coding agents in Docker Sandboxes (`sbx`) when available.
+- Start with `sbx policy init deny-all`, then allow only required destinations.
+- Keep tokens in `sbx` secret storage rather than exposing their raw values to the agent.
+- Codex OAuth can remain host-side with `sbx secret set openai --oauth`.
+
+Example:
+
+```bash
+sbx policy init deny-all
+sbx policy allow network "api.openai.com,github.com,*.npmjs.org"
+sbx secret set openai --oauth
+sbx secret set github
+sbx run codex .
+```
 
 ### SIP ii — Freeze Unvetted Dependencies
 
@@ -45,7 +70,14 @@ The agent should produce actionable file edits and workflow updates, keeping cha
 - Push candidate image tagged by commit SHA.
 - Use build output digest (`steps.<id>.outputs.digest`) as the immutable artifact reference for downstream steps.
 
-## Baseline GitHub Actions Pattern (ii–iv)
+### SIP v — Scan the Attested SBOM
+
+- Install an explicitly pinned Trivy version.
+- Scan the exact build digest with `--sbom-sources oci` so Trivy consumes the attached SBOM.
+- Fail on fixable Critical CVEs with `--severity CRITICAL --ignore-unfixed --exit-code 1`.
+- Promote only after the gate succeeds, and promote the scanned digest rather than rebuilding.
+
+## Baseline GitHub Actions Pattern
 
 The placeholders below are documentation only. When modifying an executable workflow, use verified full commit SHAs. Never write `<PINNED-SHA>` or another placeholder into a real workflow; if a SHA cannot be verified, preserve the existing reference and report it as a manual action.
 
@@ -107,4 +139,26 @@ jobs:
           sbom: true
           provenance: mode=max
           outputs: type=image,push=true,oci-mediatypes=true,oci-artifact=true
+
+      # SIP v
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@<PINNED-SHA>
+        with:
+          version: <PINNED-TRIVY-VERSION>
+
+      - name: Gate Critical CVEs using the attested SBOM
+        run: |
+          trivy image \
+            --sbom-sources oci \
+            --scanners vuln \
+            --severity CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}
+
+      - name: Promote the scanned image
+        run: |
+          docker buildx imagetools create \
+            --tag ghcr.io/${{ github.repository }}:latest \
+            ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}
 ```

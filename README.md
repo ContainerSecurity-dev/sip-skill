@@ -14,6 +14,53 @@ SIP follows the software supply chain in order:
 
 Each control reduces the risk passed to the next. The final scan consumes the SBOM generated during the build, and promotion reuses the exact digest that passed the gate.
 
+## Install
+
+### With the Codex skill installer
+
+In Codex, ask the built-in installer to install this repository:
+
+```text
+$skill-installer Install the SIP skill from https://github.com/ContainerSecurity-dev/sip-skill
+```
+
+### Manually
+
+Clone the repository into the user skill directory:
+
+```bash
+mkdir -p ~/.agents/skills
+git clone https://github.com/ContainerSecurity-dev/sip-skill.git ~/.agents/skills/sip
+```
+
+To update an existing manual installation:
+
+```bash
+git -C ~/.agents/skills/sip pull --ff-only
+```
+
+Codex detects skill changes automatically. If SIP does not appear, restart Codex. Run `/skills` in the Codex CLI or IDE extension to confirm that `sip` is available.
+
+## Use
+
+SIP does not run implicitly. Invoke it explicitly from the root of the Node.js container repository you want to harden:
+
+```text
+$sip Apply all five SIP controls to this repository.
+```
+
+You can constrain the request while still invoking the skill explicitly:
+
+```text
+$sip Inspect this repository and report the SIP gaps without modifying files.
+```
+
+```text
+$sip Apply SIP to this repository, but preserve the existing target registry and release-tag policy.
+```
+
+Review the proposed or completed changes, required secrets, verified Action SHAs, cooldown exceptions, and validation results before merging them.
+
 ## Skill Intent
 
 Invoke `$sip` explicitly when applying the framework to a Node.js container supply chain. Implicit invocation is disabled because SIP can modify agent isolation, dependencies, Dockerfiles, and CI/CD workflows.

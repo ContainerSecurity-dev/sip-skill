@@ -1,0 +1,7 @@
+interface:
+  display_name: "SIP"
+  short_description: "Apply SIP supply-chain hardening"
+  default_prompt: "Use $sip to apply SIP supply-chain hardening to this Node.js container repository."
+
+policy:
+  allow_implicit_invocation: false

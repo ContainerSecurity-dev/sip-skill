@@ -1,6 +1,6 @@
 ---
 name: sip
-description: "Explicitly invoked SIP skill for Node.js container repositories: apply or audit SIP i-v without weakening existing security controls."
+description: "Apply or audit SIP i-v for containerized software repositories without weakening existing security controls. Use only when explicitly invoked for SIP implementation or gap analysis; never invoke implicitly."
 ---
 
 # SIP
@@ -12,12 +12,19 @@ Apply this chain in order:
 Make minimal repository changes. Preserve existing registry and release semantics
 unless they conflict with a SIP invariant.
 
+Apply SIP across language ecosystems. The bundled dependency validator and
+concrete examples target npm; for other package managers, preserve the same
+cooldown, locked-install, script-suppression, and fail-closed verification
+invariants with ecosystem-native controls.
+
 ## 1. Inspect before editing
 
-- Identify Node.js and bundled npm versions; confirm npm supports
+- Identify the language ecosystem, package manager, and lockfile. For npm,
+  identify Node.js and bundled npm versions and confirm npm supports
   `min-release-age` without downloading another package manager.
-- Inspect `package.json`, `package-lock.json`, `.npmrc`, every Dockerfile, and all
-  image build, PR, scan, promotion, and release workflows.
+- Inspect package manifests and lockfiles, every Dockerfile, and all image build,
+  PR, scan, promotion, and release workflows. For npm, include `package.json`,
+  `package-lock.json`, and `.npmrc`.
 - Identify registry naming, authentication, protected environments, fork
   behavior, required checks, concurrency, release tags, and existing attestations.
 - Inspect local agent configuration and `sbx` availability, but treat SIP i as a
@@ -35,6 +42,12 @@ unless they conflict with a SIP invariant.
 
 ## 3. SIP ii — freeze unvetted dependencies
 
+- For non-npm repositories, implement equivalent ecosystem-native controls:
+  enforce a five-day release cooldown, use a committed lockfile and immutable
+  install, suppress automatic install scripts where supported, and validate
+  already-locked packages explicitly rather than assuming resolution policy
+  rechecks them.
+- For npm repositories, apply the concrete controls below.
 - Ensure `.npmrc` contains `min-release-age=5` and `ignore-scripts=true`.
 - Keep `package-lock.json` committed. Use `npm ci --ignore-scripts`, never
   `npm install`, in CI and Docker builds.
@@ -56,7 +69,7 @@ unless they conflict with a SIP invariant.
 
 - Convert applicable Dockerfiles to multi-stage builds.
 - Select verified, matching DHI build/runtime tags compatible with the app and
-  bundled npm:
+  package ecosystem. For Node.js, also verify bundled npm compatibility:
   - Build: `dhi.io/node:<version>-<distro>-dev`
   - Runtime: `dhi.io/node:<version>-<distro>`
 - Keep runtime contents minimal, copy files with correct ownership, and run as a

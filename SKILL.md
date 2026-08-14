@@ -1,88 +1,137 @@
 ---
 name: sip
-description: "Apply the complete SIP supply-chain security framework to a Node.js container repository: isolate local AI agents, freeze unvetted npm dependencies, harden Docker builds, generate BuildKit SBOM and provenance attestations, and gate releases by scanning the attested SBOM with Trivy. Use only when explicitly invoked to implement SIP hardening in a repository."
+description: "Apply or audit the complete SIP supply-chain security framework for a Node.js container repository: document developer-side AI-agent isolation, enforce an npm dependency cooldown and locked script-free installs, use multi-stage Docker Hardened Images, publish BuildKit SBOM/provenance attestations, strictly scan the attached SBOM, report PR findings, and promote only the scanned digest. Use only when explicitly invoked for SIP implementation or gap analysis."
 ---
 
 # SIP
 
-Apply the Security Immediate Plan as one ordered chain:
+Apply this chain in order:
 
 **AI agent → dependencies → container build → attestations → vulnerability gate**
 
-Make minimal, targeted repository changes and no unrelated refactors.
+Make minimal repository changes. Preserve existing registry and release semantics
+unless they conflict with a SIP invariant.
 
-## Step 1 — Inspect
+## 1. Inspect before editing
 
-Before modifying anything:
+- Identify Node.js and bundled npm versions; confirm npm supports
+  `min-release-age` without downloading another package manager.
+- Inspect `package.json`, `package-lock.json`, `.npmrc`, every Dockerfile, and all
+  image build, PR, scan, promotion, and release workflows.
+- Identify registry naming, authentication, protected environments, fork
+  behavior, required checks, concurrency, release tags, and existing attestations.
+- Inspect local agent configuration and `sbx` availability, but treat SIP i as a
+  developer/host control rather than repository enforcement.
+- Inventory every GitHub Action reference and verify executable workflows use
+  full commit SHAs.
 
-- Identify the Node.js and npm versions.
-- Inspect `package.json` and `package-lock.json`.
-- Inspect the existing `.npmrc`.
-- Find all `Dockerfile` variants.
-- Find image build and push workflows.
-- Identify the target container registry.
-- Identify existing SBOM and provenance configuration.
-- Identify existing GitHub Action versions and references.
-- Identify local AI-agent configuration and whether Docker Sandboxes (`sbx`) is available.
-- Identify existing vulnerability scans, release tags, and promotion steps.
+## 2. SIP i — document local agent isolation
 
-## Step 2 — Isolate local AI agents (SIP i)
+- Recommend `sbx policy init deny-all`, task-scoped network allowances, host-side
+  `sbx` secrets, and `sbx secret set openai --oauth` for Codex.
+- Never reset, replace, or weaken an existing sandbox policy automatically.
+- Do not claim GitHub CI enforces SIP i. Record it as developer guidance/manual
+  action when the repository cannot represent the host policy.
 
-- Run local AI coding agents inside a sandboxed microVM using Docker Sandboxes when available.
-- Initialize a deny-by-default policy with `sbx policy init deny-all`.
-- Allow only the network destinations required for the task.
-- Store credentials with `sbx secret set`; do not expose raw tokens inside the sandbox.
-- For Codex OAuth, prefer host-side credential handling with `sbx secret set openai --oauth`.
-- Do not weaken an existing sandbox or secret policy. If `sbx` is unavailable, report isolation as a manual action instead of silently substituting a weaker control.
+## 3. SIP ii — freeze unvetted dependencies
 
-## Step 3 — Freeze unvetted dependencies (SIP ii)
+- Ensure `.npmrc` contains `min-release-age=5` and `ignore-scripts=true`.
+- Keep `package-lock.json` committed. Use `npm ci --ignore-scripts`, never
+  `npm install`, in CI and Docker builds.
+- Do not assume the cooldown evaluates existing lockfile entries: `npm ci` does
+  not re-resolve them. Add a fail-closed publication-age check for every locked
+  package before installation. Reuse `scripts/validate-lockfile-age.mjs` from
+  this skill when compatible with the repository.
+- Verify the selected Node release bundles npm 11 or another version supporting
+  `min-release-age`. Do not bootstrap npm with an unlocked `npm install` or
+  `npm exec` download.
+- Do not add cooldown exclusions automatically. Report a blocked security update
+  and recommend a narrow `min-release-age-exclude` entry.
 
-- Ensure `.npmrc` contains `min-release-age=5`; current npm interprets this value in days.
-- Ensure `.npmrc` contains `ignore-scripts=true`.
-- Ensure CI uses `npm ci --ignore-scripts`, not `npm install`.
-- Keep `package-lock.json` committed and use it in CI.
-- Do not automatically add cooldown exclusions. If the cooldown blocks a required security update, report the package and recommend an explicit `min-release-age-exclude` exception.
+## 4. SIP iii — harden the container
 
-## Step 4 — Harden container builds (SIP iii)
+- Convert applicable Dockerfiles to multi-stage builds.
+- Select verified, matching DHI build/runtime tags compatible with the app and
+  bundled npm:
+  - Build: `dhi.io/node:<version>-<distro>-dev`
+  - Runtime: `dhi.io/node:<version>-<distro>`
+- Keep runtime contents minimal, copy files with correct ownership, and run as a
+  non-root user.
+- Declare `ARG BUILDKIT_SBOM_SCAN_STAGE=true` in every stage to include; Dockerfile
+  `ARG` scope is stage-specific.
+- Authenticate to DHI through a pinned `docker/login-action` and secrets. Never
+  pass registry credentials as build arguments.
 
-- Convert each applicable Dockerfile to a multi-stage build if it is not already multi-stage.
-- Use Docker Hardened Images:
-  - Build stage: `dhi.io/node:<version>-<distro>-dev`
-  - Runtime stage: `dhi.io/node:<version>-<distro>`
-- Keep the runtime stage minimal and non-root by default.
-- Declare `ARG BUILDKIT_SBOM_SCAN_STAGE=true` in every stage that must be included in the SBOM. Dockerfile `ARG` scope is stage-specific.
-- Authenticate to DHI in CI with `docker/login-action` and secrets. Never pass registry credentials as Docker build arguments.
+## 5. SIP iv — build once and attest
 
-## Step 5 — Generate attestations (SIP iv)
-
-- Build with these BuildKit attestation settings:
+- Keep container construction and attestation in one BuildKit operation:
   - `sbom: true`
   - `provenance: mode=max`
   - `outputs: type=image,push=true,oci-mediatypes=true,oci-artifact=true`
-- Tag the candidate image with the commit SHA.
-- Capture and use the image digest output as the immutable reference for downstream steps.
+- Tag the candidate with the source commit SHA and expose the build digest as a
+  job output. Use that digest for every downstream operation.
+- Derive registry/image names from existing configuration. For GHCR, normalize
+  `${{ github.repository }}` to lowercase rather than hardcoding a repository.
+- Never rebuild between attestation, scanning, and promotion.
 
-## Step 6 — Gate releases with the attested SBOM (SIP v)
+## 6. SIP v — strictly scan the attached SBOM
 
 - Install a verified, explicitly pinned Trivy version.
-- Scan the exact image digest returned by the build, not a mutable tag.
-- Use `trivy image --sbom-sources oci --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1 <registry>/<image>@<digest>`.
-- Treat a fixable Critical vulnerability as a failed CI gate.
-- Make the scan a required gate before release promotion.
-- After the gate succeeds, promote the already-scanned digest with `docker buildx imagetools create`; never rebuild between scanning and promotion.
-- Verify that Trivy discovers the attached OCI SBOM. If the registry or tooling cannot supply it, fail safely and report the missing attestation path instead of silently rescanning image layers.
+- Do not rely only on `trivy image --sbom-sources oci`; OCI lookup is best-effort
+  and may fall back to layer analysis.
+- Extract the exact digest's attached SPDX predicate with Buildx, validate a
+  non-empty SPDX document, then pass that file to `trivy sbom`:
+
+```bash
+docker buildx imagetools inspect "${IMAGE}@${DIGEST}" \
+  --format '{{ json .SBOM.SPDX }}' > sbom.spdx.json
+jq -e '.spdxVersion and (.packages | type == "array") and (.packages | length > 0)' \
+  sbom.spdx.json > /dev/null
+trivy sbom --scanners vuln --severity CRITICAL --ignore-unfixed \
+  --exit-code 1 sbom.spdx.json
+```
+
+- Fail safely when the digest, attestation, SPDX structure, or registry lookup is
+  missing. A fixable Critical vulnerability must fail the gate.
+- Promote only after the gate and only with `docker buildx imagetools create`
+  referencing the scanned digest.
+
+## 7. Design safe GitHub Actions
+
+Read `references/github-actions.md` before creating or substantially modifying a
+workflow. Apply these invariants:
+
+- Trigger dependency validation on PRs. Prefer separate visible jobs for SIP ii,
+  combined SIP iii–iv, SIP v, and promotion.
+- Reuse the same job graph for PR and release events; promotion is the only
+  release-only job.
+- For same-repository PRs, put credential-bearing publication behind a protected
+  environment with required reviewers. Never expose DHI or package-write
+  credentials to fork PRs.
+- Ensure trusted `main` or merge-queue execution completes SIP ii–v before
+  promotion when a fork cannot run credential-bearing jobs.
+- Add a marker-based PR CVE comment when requested; update it rather than posting
+  repeatedly. Keep the gate independent of comment success where appropriate.
+- Reject ineligible manual refs and use ref-scoped concurrency to prevent stale
+  `latest` promotion.
+- Use least-privilege job permissions and pinned full Action SHAs.
 
 ## Workflow safety
 
-- When modifying an actual GitHub Actions workflow, use verified full commit SHAs.
-- Never insert `<PINNED-SHA>` or another placeholder into an executable workflow.
-- If a SHA cannot be verified, preserve the existing reference and report it as a manual action.
-- Placeholders are acceptable only in clearly labeled documentation examples.
+- Never place `<PINNED-SHA>` or another placeholder in an executable workflow.
+- Verify Action tag SHAs from upstream before pinning. If verification is
+  impossible, preserve the existing reference and report a manual action.
+- Do not mutate repository/environment protection settings or secrets without
+  explicit authorization. Report required GitHub configuration separately.
 
-## Output
+## Validate and report
 
-- Summarize inspected files and detected configuration.
-- List the minimal repository changes made for SIP i–v.
-- Report unverified action references, cooldown exceptions, or other required manual actions.
-- Report whether the vulnerability gate consumed the attached SBOM and whether promotion references the scanned digest.
-- Report the validation commands run and their results.
+- Run the lockfile-age validator, `npm ci --ignore-scripts`, build, tests,
+  `actionlint` when available, and `git diff --check`.
+- Run an authenticated end-to-end build when credentials and authorization allow;
+  otherwise state exactly which registry behavior remains unverified.
+- Report inspected files, changes by SIP control, Node/npm/DHI versions, Action
+  SHA verification, cooldown exceptions, PR/fork event behavior, protected
+  environment requirements, and required-check configuration.
+- Explicitly report whether the gate extracted and scanned the attached SPDX
+  document and whether promotion references that same digest.

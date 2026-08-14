@@ -1,6 +1,6 @@
 ---
 name: sip
-description: "Apply or audit the complete SIP supply-chain security framework for a Node.js container repository: document developer-side AI-agent isolation, enforce an npm dependency cooldown and locked script-free installs, use multi-stage Docker Hardened Images, publish BuildKit SBOM/provenance attestations, strictly scan the attached SBOM, report PR findings, and promote only the scanned digest. Use only when explicitly invoked for SIP implementation or gap analysis."
+description: "Explicitly invoked SIP skill for Node.js container repositories: apply or audit SIP i-v without weakening existing security controls."
 ---
 
 # SIP

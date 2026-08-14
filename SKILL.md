@@ -42,11 +42,15 @@ unless they conflict with a SIP invariant.
   not re-resolve them. Add a fail-closed publication-age check for every locked
   package before installation. Reuse `scripts/validate-lockfile-age.mjs` from
   this skill when compatible with the repository.
+- Require lockfile version 2 or newer with a non-empty `packages` table. Verify
+  each locked tarball URL and integrity value against npm registry metadata, and
+  bound registry requests with timeouts and limited retries.
 - Verify the selected Node release bundles npm 11 or another version supporting
   `min-release-age`. Do not bootstrap npm with an unlocked `npm install` or
   `npm exec` download.
 - Do not add cooldown exclusions automatically. Report a blocked security update
-  and recommend a narrow `min-release-age-exclude` entry.
+  and recommend a narrow, exact-name `min-release-age-exclude` entry. Ensure the
+  explicit validator reads the same exclusions and reports their use.
 
 ## 4. SIP iii — harden the container
 
@@ -103,18 +107,26 @@ workflow. Apply these invariants:
 
 - Trigger dependency validation on PRs. Prefer separate visible jobs for SIP ii,
   combined SIP iii–iv, SIP v, and promotion.
+- Calculate one candidate SHA and check it out in every job; do not test a PR
+  merge ref and build its head SHA.
 - Reuse the same job graph for PR and release events; promotion is the only
   release-only job.
 - For same-repository PRs, put credential-bearing publication behind a protected
-  environment with required reviewers. Never expose DHI or package-write
-  credentials to fork PRs.
+  environment with required reviewers. Verify the environment has actual
+  protection rules; naming an environment in YAML is not protection, and rule
+  availability can depend on repository visibility and plan. Never expose DHI
+  or package-write credentials to fork PRs.
 - Ensure trusted `main` or merge-queue execution completes SIP ii–v before
   promotion when a fork cannot run credential-bearing jobs.
 - Add a marker-based PR CVE comment when requested; update it rather than posting
-  repeatedly. Keep the gate independent of comment success where appropriate.
+  repeatedly. For paginated `gh api` output, slurp all pages and pipe them to an
+  external `jq`; `gh api --slurp` is incompatible with its built-in `--jq`.
+  Keep the gate independent of comment success where appropriate.
 - Reject ineligible manual refs and use ref-scoped concurrency to prevent stale
   `latest` promotion.
 - Use least-privilege job permissions and pinned full Action SHAs.
+- Keep workflow YAML focused on orchestration. Move substantial reusable shell
+  logic into repository scripts so it can be syntax-checked and tested.
 
 ## Workflow safety
 
@@ -126,7 +138,8 @@ workflow. Apply these invariants:
 
 ## Validate and report
 
-- Run the lockfile-age validator, `npm ci --ignore-scripts`, build, tests,
+- Run the validator's regression tests, the lockfile-age validator,
+  `npm ci --ignore-scripts`, build, tests,
   `actionlint` when available, and `git diff --check`.
 - Run an authenticated end-to-end build when credentials and authorization allow;
   otherwise state exactly which registry behavior remains unverified.

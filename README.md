@@ -1,7 +1,7 @@
 # SIP Agent Skill: Security Immediate Plan
 
 An explicitly invoked Agent Skill for applying or auditing the complete SIP
-supply-chain framework in Node.js container repositories:
+supply-chain framework in containerized software repositories:
 
 **AI agent → dependencies → container build → attestations → vulnerability gate**
 
@@ -15,15 +15,18 @@ bundled scripts/references). Do not duplicate it into per-client variants.
 
 | Client | Agent Skills format | Install method/path | Invocation |
 | --- | --- | --- | --- |
-| OpenAI Codex | Yes (skill format supported; OpenAI now also documents skill-only plugins) | `$skill-installer` from `https://github.com/ContainerSecurity-dev/sip-skill`, or clone to `~/.agents/skills/sip` | Explicit: `$sip ...` |
-| Claude Code | Yes | Project: `.claude/skills/sip` (or `.agents/skills/sip` where supported by host tooling); optional plugin marketplace path is client-specific | Explicit: invoke SIP by name (for example `/sip` or “use sip”) |
+| OpenAI Codex | Yes | `$skill-installer` from `https://github.com/ContainerSecurity-dev/sip-skill`, or clone to `~/.agents/skills/sip` | Explicit: `$sip ...` |
+| Claude Code | Yes | Project: `.claude/skills/sip`; Personal: `~/.claude/skills/sip`; optional plugin marketplace path is client-specific | Explicit: `/sip` or “use sip” |
 | OpenCode | Yes | `.opencode/skills/sip` (native) or compatible paths: `.claude/skills/sip`, `.agents/skills/sip`, and global equivalents | Loaded via OpenCode skill tool when explicitly requested |
-| Google Antigravity | Unverified in this environment | Follow current official Antigravity docs for Agent Skill/plugin locations | Invoke only per confirmed official docs |
+| Google Antigravity | Yes | Project: `.agents/skills/sip`; Global: `~/.gemini/config/skills/sip` | Explicitly request SIP by name |
 | GitHub Copilot | Yes (Copilot cloud agent, code review, CLI/app, VS Code agent mode) | Project: `.github/skills/sip` or `.agents/skills/sip`; Personal: `~/.copilot/skills/sip` or `~/.agents/skills/sip` | Explicitly request SIP by name in chat/agent task |
 
 ## Install SIP
 
-### Preferred canonical install (portable)
+### Shared install path (where supported)
+
+Codex, OpenCode, and GitHub Copilot discover personal skills from
+`~/.agents/skills`. Other clients use the paths in the compatibility table.
 
 ```bash
 mkdir -p ~/.agents/skills
@@ -46,7 +49,7 @@ $skill-installer Install the SIP skill from https://github.com/ContainerSecurity
 
 ## Use
 
-SIP never runs implicitly. Install SIP, open the target Node.js container
+SIP never runs implicitly. Install SIP, open the target containerized software
 repository, then invoke SIP from that repository:
 
 ```text
@@ -67,6 +70,11 @@ $sip Apply SIP, preserving the existing registry and release-tag policy.
 
 SIP audits or applies controls ii–v and reports SIP i as a developer/host
 control requiring manual host-side policy.
+
+SIP is ecosystem-independent. Its bundled dependency validator and concrete
+examples currently target npm; for other package managers, the skill applies
+equivalent cooldown, locked-install, script-suppression, and fail-closed
+verification invariants using ecosystem-native controls.
 
 ## Client-specific notes
 

@@ -56,7 +56,9 @@ Prefer least privilege at job scope:
 
 ## Dependency job
 
-1. Check out the tested source.
+1. Calculate one candidate SHA (`github.event.pull_request.head.sha` for PRs,
+   otherwise `github.sha`) and check out that exact SHA in every source-consuming
+   job.
 2. Normalize the GHCR image name to lowercase and expose it as a job output.
 3. Set up a verified Node version whose bundled npm supports
    `min-release-age`.
@@ -88,6 +90,9 @@ outputs: type=image,name=${{ env.IMAGE }}:sha-${{ env.CANDIDATE_SHA }},push=true
 ## Vulnerability job
 
 - Depend on the container/attestation job and use only its immutable outputs.
+- Authenticate to the target registry with read-only credentials before
+  inspecting a private image. `packages: read` grants token permission but does
+  not configure Docker authentication.
 - Extract the SPDX predicate explicitly:
 
 ```bash
@@ -100,7 +105,17 @@ docker buildx imagetools inspect "${IMAGE}@${DIGEST}" \
   `--exit-code 0`, count fixable Critical findings, update the report, then fail
   in a final enforcement step when the count is nonzero.
 - Use a stable HTML marker such as `<!-- sip-trivy-report -->` to find and update
-  one existing PR comment. Paginate comment lookup.
+  one existing PR comment. Paginate and fully consume comment lookup. Do not
+  combine `gh api --slurp` with its built-in `--jq`; pipe to external `jq`:
+
+```bash
+comment_id=$(
+  gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+    --paginate --slurp |
+    jq -r --arg marker '<!-- sip-trivy-report -->' \
+      '[.[][] | select(.body | contains($marker))][0].id // empty'
+)
+```
 - Limit table output while preserving full results in the job log, summary, or a
   retained artifact.
 
@@ -136,4 +151,6 @@ Before completion, confirm:
 - Fork PRs cannot access secrets and cannot cause promotion.
 - Required checks and protected environments are reported as repository settings
   when they cannot be safely configured in code.
+- Every source-consuming job checks out the same candidate SHA.
+- Private-registry authentication precedes attached-SBOM retrieval.
 - The promoted source is the exact scanned digest.

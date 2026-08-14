@@ -81,6 +81,12 @@ publication timestamps for every locked dependency. This explicit validation is
 necessary because `npm ci` installs existing lockfile entries without applying
 resolution-time cooldown filtering.
 
+The bundled validator requires a modern non-empty lockfile, checks locked
+tarball URLs and integrity values against npm metadata, rejects invalid
+timestamps, and uses timed, bounded-retry registry requests. Exact package names
+listed with `min-release-age-exclude` are honored and reported as explicit
+exceptions.
+
 The chosen Node release must bundle an npm version that supports
 `min-release-age`; the skill does not bootstrap npm using an unlocked global or
 `npm exec` installation.
@@ -134,6 +140,8 @@ Credential-bearing same-repository PR jobs should use a protected GitHub
 environment. Fork PRs never receive publishing credentials; a trusted main or
 merge-queue run must complete the full gate before release. Optional PR reporting
 updates one marker-based CVE comment instead of creating repeated comments.
+Private-image inspection authenticates to the registry first, and every job uses
+the same candidate SHA.
 
 All executable workflow Actions must use verified full commit SHAs. The skill
 also checks manual-ref eligibility, ref-scoped concurrency, least-privilege job
@@ -142,7 +150,11 @@ permissions, lowercase GHCR naming, and promotion of the scanned digest.
 ## Bundled resources
 
 - [`scripts/validate-lockfile-age.mjs`](scripts/validate-lockfile-age.mjs): a
-  fail-closed, bounded-concurrency validator for npm lockfile publication ages.
+  fail-closed validator for npm publication age and locked artifact identity,
+  with bounded concurrency, request timeouts, and retries.
+- [`scripts/validate-lockfile-age.test.mjs`](scripts/validate-lockfile-age.test.mjs):
+  regression coverage for malformed policy input, legacy lockfiles, registry
+  metadata, exclusions, and transient failures.
 - [`references/github-actions.md`](references/github-actions.md): detailed job,
   event, credential, reporting, and promotion guidance loaded when workflows are
   created or substantially changed.

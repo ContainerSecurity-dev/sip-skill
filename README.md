@@ -1,81 +1,63 @@
 # SIP Skill: Security Immediate Plan
 
-This repository provides an agentic skill for the complete SIP framework:
-
-1. Isolate local AI agents.
-2. Freeze unvetted dependencies.
-3. Harden container builds.
-4. Generate SBOM and provenance attestations.
-5. Scan the attested SBOM and gate releases.
-
-SIP follows the software supply chain in order:
+An explicitly invoked Codex skill for applying or auditing the complete SIP
+supply-chain framework in Node.js container repositories:
 
 **AI agent → dependencies → container build → attestations → vulnerability gate**
 
-Each control reduces the risk passed to the next. The final scan consumes the SBOM generated during the build, and promotion reuses the exact digest that passed the gate.
+The skill makes targeted repository changes, validates what it can execute, and
+reports host or GitHub settings that require manual authorization.
 
 ## Install
 
-### With the Codex skill installer
-
-In Codex, ask the built-in installer to install this repository:
+Ask Codex to use the built-in installer:
 
 ```text
 $skill-installer Install the SIP skill from https://github.com/ContainerSecurity-dev/sip-skill
 ```
 
-### Manually
-
-Clone the repository into the user skill directory:
+Or install it manually:
 
 ```bash
 mkdir -p ~/.agents/skills
 git clone https://github.com/ContainerSecurity-dev/sip-skill.git ~/.agents/skills/sip
 ```
 
-To update an existing manual installation:
+Update a manual installation with:
 
 ```bash
 git -C ~/.agents/skills/sip pull --ff-only
 ```
 
-Codex detects skill changes automatically. If SIP does not appear, restart Codex. Run `/skills` in the Codex CLI or IDE extension to confirm that `sip` is available.
-
 ## Use
 
-SIP does not run implicitly. Invoke it explicitly from the root of the Node.js container repository you want to harden:
+SIP never runs implicitly. Invoke it from the target repository:
 
 ```text
-$sip Apply all five SIP controls to this repository.
+$sip Apply the complete SIP framework to this repository.
 ```
 
-You can constrain the request while still invoking the skill explicitly:
+For a read-only audit:
 
 ```text
-$sip Inspect this repository and report the SIP gaps without modifying files.
+$sip Inspect this repository and report SIP gaps without modifying files.
 ```
+
+To constrain implementation choices:
 
 ```text
-$sip Apply SIP to this repository, but preserve the existing target registry and release-tag policy.
+$sip Apply SIP, preserving the existing registry and release-tag policy.
 ```
 
-Review the proposed or completed changes, required secrets, verified Action SHAs, cooldown exceptions, and validation results before merging them.
+## Controls
 
-## Skill Intent
+### SIP i — local AI-agent isolation
 
-Invoke `$sip` explicitly when applying the framework to a Node.js container supply chain. Implicit invocation is disabled because SIP can modify agent isolation, dependencies, Dockerfiles, and CI/CD workflows.
-The agent should produce actionable file edits and workflow updates, keeping changes minimal and deterministic.
+SIP i is a developer/host control, not something GitHub CI can enforce. The
+skill inspects and documents Docker Sandboxes usage but never resets or weakens
+an existing host policy automatically.
 
-## Operating Rules for the Agent
-
-### SIP i — Isolate Local AI Agents
-
-- Run local coding agents in Docker Sandboxes (`sbx`) when available.
-- Start with `sbx policy init deny-all`, then allow only required destinations.
-- Keep tokens in `sbx` secret storage rather than exposing their raw values to the agent.
-- Codex OAuth can remain host-side with `sbx secret set openai --oauth`.
-
-Example:
+Recommended developer setup:
 
 ```bash
 sbx policy init deny-all
@@ -85,127 +67,95 @@ sbx secret set github
 sbx run codex .
 ```
 
-### SIP ii — Freeze Unvetted Dependencies
+### SIP ii — dependency cooldown
 
-- Enforce a 5-day dependency cooldown in `.npmrc`:
-  - `min-release-age=5`
-- Current npm interprets `min-release-age` in days.
-- Disable lifecycle scripts in `.npmrc`:
-  - `ignore-scripts=true`
-- Use locked installs in CI:
-  - `npm ci --ignore-scripts`
-- Preserve and rely on `package-lock.json` for deterministic installs.
-- Do not add cooldown exclusions automatically. If a required security update is blocked, report the package and recommend an explicit `min-release-age-exclude` exception.
+The skill enforces:
 
-### SIP iii — Harden Container Builds
+```ini
+min-release-age=5
+ignore-scripts=true
+```
 
-- Convert Dockerfiles to multi-stage builds with separate build/runtime stages.
-- Prefer Docker Hardened Images (DHI), e.g.:
-  - Build stage: `dhi.io/node:<version>-<distro>-dev`
-  - Runtime stage: `dhi.io/node:<version>-<distro>`
-- Keep runtime image minimal and non-root by default.
-- Authenticate to DHI in CI via `docker/login-action` using secrets (never Docker build args for credentials).
-- Include this declaration in every stage that must be scanned because Dockerfile `ARG` scope is stage-specific:
-  - `ARG BUILDKIT_SBOM_SCAN_STAGE=true`
+It keeps `package-lock.json`, uses only `npm ci --ignore-scripts`, and validates
+publication timestamps for every locked dependency. This explicit validation is
+necessary because `npm ci` installs existing lockfile entries without applying
+resolution-time cooldown filtering.
 
-### SIP iv — Generate SBOM + Provenance Attestations
+The chosen Node release must bundle an npm version that supports
+`min-release-age`; the skill does not bootstrap npm using an unlocked global or
+`npm exec` installation.
 
-- Use BuildKit attestations during image build:
-  - `sbom: true`
-  - `provenance: mode=max`
-  - `outputs: type=image,push=true,oci-mediatypes=true,oci-artifact=true`
-- Push candidate image tagged by commit SHA.
-- Use build output digest (`steps.<id>.outputs.digest`) as the immutable artifact reference for downstream steps.
+### SIP iii — hardened containers
 
-### SIP v — Scan the Attested SBOM
+The skill creates or updates a multi-stage Dockerfile using matching Docker
+Hardened Image build and runtime variants. Runtime contents stay minimal and
+non-root. Each relevant stage declares:
 
-- Install an explicitly pinned Trivy version.
-- Scan the exact build digest with `--sbom-sources oci` so Trivy consumes the attached SBOM.
-- Fail on fixable Critical CVEs with `--severity CRITICAL --ignore-unfixed --exit-code 1`.
-- Promote only after the gate succeeds, and promote the scanned digest rather than rebuilding.
+```dockerfile
+ARG BUILDKIT_SBOM_SCAN_STAGE=true
+```
 
-## Baseline GitHub Actions Pattern
+### SIP iv — SBOM and provenance
 
-The placeholders below are documentation only. When modifying an executable workflow, use verified full commit SHAs. Never write `<PINNED-SHA>` or another placeholder into a real workflow; if a SHA cannot be verified, preserve the existing reference and report it as a manual action.
+The candidate is built once and pushed with:
 
 ```yaml
-name: SIP Supply Chain (ii-iv)
-
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: read
-  packages: write
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@<PINNED-SHA>
-
-      # SIP ii
-      - name: Set up Node
-        uses: actions/setup-node@<PINNED-SHA>
-        with:
-          node-version: 26
-
-      - name: Install locked dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Test
-        run: npm test
-
-      # SIP iii
-      - name: Login to DHI
-        uses: docker/login-action@<PINNED-SHA>
-        with:
-          registry: dhi.io
-          username: ${{ vars.DOCKER_USERNAME }}
-          password: ${{ secrets.DHI_TOKEN }}
-
-      - name: Login to GHCR
-        uses: docker/login-action@<PINNED-SHA>
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@<PINNED-SHA>
-
-      # SIP iv
-      - name: Build and attest candidate
-        id: build
-        uses: docker/build-push-action@<PINNED-SHA>
-        with:
-          context: .
-          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
-          sbom: true
-          provenance: mode=max
-          outputs: type=image,push=true,oci-mediatypes=true,oci-artifact=true
-
-      # SIP v
-      - name: Install Trivy
-        uses: aquasecurity/setup-trivy@<PINNED-SHA>
-        with:
-          version: <PINNED-TRIVY-VERSION>
-
-      - name: Gate Critical CVEs using the attested SBOM
-        run: |
-          trivy image \
-            --sbom-sources oci \
-            --scanners vuln \
-            --severity CRITICAL \
-            --ignore-unfixed \
-            --exit-code 1 \
-            ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}
-
-      - name: Promote the scanned image
-        run: |
-          docker buildx imagetools create \
-            --tag ghcr.io/${{ github.repository }}:latest \
-            ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}
+sbom: true
+provenance: mode=max
+outputs: type=image,push=true,oci-mediatypes=true,oci-artifact=true
 ```
+
+The source SHA names the candidate; the resulting digest identifies it for every
+downstream operation.
+
+### SIP v — strict attached-SBOM gate
+
+The skill does not trust best-effort `--sbom-sources oci` discovery alone. It
+extracts `.SBOM.SPDX` from the exact image digest, validates a non-empty SPDX
+document, and passes that file to pinned Trivy. Missing attestations fail closed.
+A fixable Critical vulnerability blocks promotion.
+
+## GitHub Actions design
+
+The preferred shared job graph is:
+
+```text
+SIP ii dependencies
+  → SIP iii–iv hardened container + attestations
+  → SIP v attached-SBOM gate
+  → promotion (trusted non-PR events only)
+```
+
+PR checks are visible separately, while container construction and attestation
+remain together to avoid rebuilding. Release events reuse the same jobs and add
+only digest promotion.
+
+Credential-bearing same-repository PR jobs should use a protected GitHub
+environment. Fork PRs never receive publishing credentials; a trusted main or
+merge-queue run must complete the full gate before release. Optional PR reporting
+updates one marker-based CVE comment instead of creating repeated comments.
+
+All executable workflow Actions must use verified full commit SHAs. The skill
+also checks manual-ref eligibility, ref-scoped concurrency, least-privilege job
+permissions, lowercase GHCR naming, and promotion of the scanned digest.
+
+## Bundled resources
+
+- [`scripts/validate-lockfile-age.mjs`](scripts/validate-lockfile-age.mjs): a
+  fail-closed, bounded-concurrency validator for npm lockfile publication ages.
+- [`references/github-actions.md`](references/github-actions.md): detailed job,
+  event, credential, reporting, and promotion guidance loaded when workflows are
+  created or substantially changed.
+
+## Expected result
+
+After implementation, the agent reports:
+
+- inspected Node, npm, Dockerfile, registry, workflow, and agent configuration;
+- changes mapped to SIP i–v;
+- verified Action SHAs and DHI versions;
+- cooldown violations or explicit exceptions;
+- PR, fork, main, tag, and manual-run behavior;
+- protected-environment and required-check configuration still needed;
+- whether the gate extracted and scanned the attached SPDX document; and
+- whether promotion references exactly the digest that passed the gate.

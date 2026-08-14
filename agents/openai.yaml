@@ -1,7 +1,7 @@
 interface:
   display_name: "SIP"
-  short_description: "Apply complete SIP supply-chain controls"
-  default_prompt: "Use $sip to apply all five SIP supply-chain controls to this Node.js container repository."
+  short_description: "Apply or audit SIP supply-chain controls"
+  default_prompt: "Use $sip to apply or audit all five SIP supply-chain controls in this Node.js container repository."
 
 policy:
   allow_implicit_invocation: false

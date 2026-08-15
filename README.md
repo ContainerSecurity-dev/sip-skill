@@ -49,8 +49,8 @@ $skill-installer Install the SIP skill from https://github.com/ContainerSecurity
 
 ## Use
 
-SIP never runs implicitly. Install SIP, open the target containerized software
-repository, then invoke SIP from that repository:
+SIP is intended for explicit use. Install SIP, open the target containerized
+software repository, then invoke SIP from that repository:
 
 ```text
 $sip Apply the complete SIP framework to this repository.
@@ -70,6 +70,12 @@ $sip Apply SIP, preserving the existing registry and release-tag policy.
 
 SIP audits or applies controls ii–v and reports SIP i as a developer/host
 control requiring manual host-side policy.
+
+Client behavior varies: several clients advertise discovered skill metadata and
+may select a relevant skill automatically. SIP's description restricts its use
+to explicit SIP requests. Where a client supports an enforcement field, such as
+Claude Code's `disable-model-invocation: true`, configure that field in a
+client-specific installation when strict user-only invocation is required.
 
 SIP is ecosystem-independent. Its bundled dependency validator and concrete
 examples currently target npm; for other package managers, the skill applies
@@ -94,6 +100,15 @@ Canonical distribution is this GitHub repository:
 Where officially supported, SIP can additionally be distributed through
 client-specific catalogs/marketplaces/plugins in the future, but the canonical
 skill should remain a single source here.
+
+- **GitHub CLI:** [`gh skill`](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills#managing-skills-with-github-cli)
+  can search, preview, install, update, and publish
+  Agent Skills. It is currently in public preview and requires GitHub CLI 2.90.0
+  or newer. Preview a third-party skill before installing it.
+- **Agent Skills ecosystem:** `npx skills` provides package-manager-style
+  installation for multiple agent clients. [Google documents it for Antigravity](https://codelabs.developers.google.com/getting-started-with-antigravity-skills#6),
+  while noting that clients differ in whether they discover its default
+  `~/.agents/skills` destination directly.
 
 ## Controls
 

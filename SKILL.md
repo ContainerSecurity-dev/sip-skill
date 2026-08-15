@@ -1,6 +1,6 @@
 ---
 name: sip
-description: "Apply or audit SIP i-v for containerized software repositories without weakening existing security controls. Use only when explicitly invoked for SIP implementation or gap analysis; never invoke implicitly."
+description: "Apply or audit SIP i-v for containerized software repositories without weakening existing security controls. Use only when the user explicitly requests SIP implementation or gap analysis."
 ---
 
 # SIP

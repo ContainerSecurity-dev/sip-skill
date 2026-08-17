@@ -55,15 +55,19 @@ invariants with ecosystem-native controls.
   not re-resolve them. Add a fail-closed publication-age check for every locked
   package before installation. Reuse `scripts/validate-lockfile-age.mjs` from
   this skill when compatible with the repository.
-- Require lockfile version 2 or newer with a non-empty `packages` table. Verify
-  each locked tarball URL and integrity value against npm registry metadata, and
-  bound registry requests with timeouts and limited retries.
-- Verify the selected Node release bundles npm 11 or another version supporting
-  `min-release-age`. Do not bootstrap npm with an unlocked `npm install` or
-  `npm exec` download.
+- Require lockfile version 2 or newer with a non-empty `packages` table. Compare
+  each locked tarball URL and integrity string with npm registry metadata, and
+  bound registry requests with timeouts and limited retries. Describe this
+  accurately as a metadata consistency check: the bundled validator does not
+  download and independently hash tarball contents.
+- Verify the selected Node release bundles npm 11.10.0 or newer for
+  `min-release-age`, and npm 11.17.0 or newer before configuring
+  `min-release-age-exclude`. Do not bootstrap npm with an unlocked `npm install`
+  or `npm exec` download.
 - Do not add cooldown exclusions automatically. Report a blocked security update
   and recommend a narrow, exact-name `min-release-age-exclude` entry. Ensure the
-  explicit validator reads the same exclusions and reports their use.
+  explicit validator reads the same exclusions and reports their use. Exclusions
+  bypass only the age check; always compare tarball and integrity metadata.
 
 ## 4. SIP iii — harden the container
 

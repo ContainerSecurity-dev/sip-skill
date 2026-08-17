@@ -97,7 +97,6 @@ export async function validateLockfile({
   const packages = new Map();
 
   for (const { name, version } of dependencies) {
-    if (exclusions.has(name)) continue;
     const versions = packages.get(name) ?? new Set();
     versions.add(version);
     packages.set(name, versions);
@@ -114,10 +113,12 @@ export async function validateLockfile({
         const publishedTime = Date.parse(publishedAt);
         const registryArtifact = metadata.versions?.[version]?.dist;
 
-        if (!publishedAt || !Number.isFinite(publishedTime)) {
-          violations.push(`${name}@${version}: publish time unavailable`);
-        } else if (publishedTime > cutoff) {
-          violations.push(`${name}@${version}: published ${publishedAt}`);
+        if (!exclusions.has(name)) {
+          if (!publishedAt || !Number.isFinite(publishedTime)) {
+            violations.push(`${name}@${version}: publish time unavailable`);
+          } else if (publishedTime > cutoff) {
+            violations.push(`${name}@${version}: published ${publishedAt}`);
+          }
         }
 
         for (const locked of dependencies.filter(

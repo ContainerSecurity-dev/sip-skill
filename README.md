@@ -47,6 +47,11 @@ Ask Codex to use the built-in installer:
 $skill-installer Install the SIP skill from https://github.com/ContainerSecurity-dev/sip-skill
 ```
 
+Both installation methods trust the repository revision they retrieve. For a
+reviewable, reproducible installation, record the reviewed commit SHA and check
+out that exact revision after cloning. Review new commits before running
+`git pull`; an update can change the executable validator and skill guidance.
+
 ## Use
 
 SIP is intended for explicit use. Install SIP, open the target containerized
@@ -142,15 +147,16 @@ publication timestamps for every locked dependency. This explicit validation is
 necessary because `npm ci` installs existing lockfile entries without applying
 resolution-time cooldown filtering.
 
-The bundled validator requires a modern non-empty lockfile, checks locked
-tarball URLs and integrity values against npm metadata, rejects invalid
-timestamps, and uses timed, bounded-retry registry requests. Exact package names
+The bundled validator requires a modern non-empty lockfile, compares locked
+tarball URLs and integrity strings with npm registry metadata, rejects invalid
+timestamps, and uses timed, bounded-retry registry requests. It does not download
+and independently hash tarball contents. Exact package names
 listed with `min-release-age-exclude` are honored and reported as explicit
 exceptions.
 
-The chosen Node release must bundle an npm version that supports
-`min-release-age`; the skill does not bootstrap npm using an unlocked global or
-`npm exec` installation.
+The chosen Node release must bundle npm 11.10.0 or newer for `min-release-age`,
+and npm 11.17.0 or newer when `min-release-age-exclude` is configured. The skill
+does not bootstrap npm using an unlocked global or `npm exec` installation.
 
 ### SIP iii — hardened containers
 

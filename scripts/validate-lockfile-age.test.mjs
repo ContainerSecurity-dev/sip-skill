@@ -88,16 +88,44 @@ test('validates publication time and registry artifact identity', async () => {
     }),
     /publish time unavailable/,
   );
+
+  const recentDate = new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString();
+  await assert.rejects(
+    validateLockfile({
+      lockfile: fixture(),
+      now,
+      fetchImpl: async () => response(registryMetadata({ time: { '1.0.0': recentDate } })),
+    }),
+    /published/,
+  );
+
+  const cutoffDate = new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString();
+  const boundaryResult = await validateLockfile({
+    lockfile: fixture(),
+    now,
+    fetchImpl: async () => response(registryMetadata({ time: { '1.0.0': cutoffDate } })),
+  });
+  assert.equal(boundaryResult.validatedCount, 1);
 });
 
-test('exact npmrc exclusions bypass validation explicitly', async () => {
+test('exact npmrc exclusions bypass only publication-age validation', async () => {
   const result = await validateLockfile({
     lockfile: fixture(),
     npmrc: 'min-release-age-exclude=example',
     now,
-    fetchImpl: async () => { throw new Error('excluded package must not be fetched'); },
+    fetchImpl: async () => response(registryMetadata({ time: { '1.0.0': 'not-a-date' } })),
   });
   assert.deepEqual(result, { validatedCount: 0, excludedCount: 1 });
+
+  await assert.rejects(
+    validateLockfile({
+      lockfile: fixture({ integrity: 'sha512-attacker' }),
+      npmrc: 'min-release-age-exclude=example',
+      now,
+      fetchImpl: async () => response(registryMetadata()),
+    }),
+    /integrity does not match/,
+  );
 });
 
 test('transient registry failures receive bounded retries', async () => {

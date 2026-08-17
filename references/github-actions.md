@@ -60,8 +60,8 @@ Prefer least privilege at job scope:
    otherwise `github.sha`) and check out that exact SHA in every source-consuming
    job.
 2. Normalize the GHCR image name to lowercase and expose it as a job output.
-3. Set up a verified Node version whose bundled npm supports
-   `min-release-age`.
+3. Set up a verified Node version whose bundled npm is at least 11.10.0 for
+   `min-release-age`, or 11.17.0 when exclusions are configured.
 4. Run the bundled lockfile-age validator before installation.
 5. Run `npm ci --ignore-scripts`, build, and tests.
 

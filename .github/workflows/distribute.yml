@@ -1,0 +1,140 @@
+name: Distribute release
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published stable release tag (v0.1.1 or later)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: distribute-${{ inputs.tag || github.event.release.tag_name }}
+  cancel-in-progress: false
+jobs:
+  ghcr:
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/release-assets
+        with:
+          tag: ${{ inputs.tag || github.event.release.tag_name }}
+          token: ${{ github.token }}
+      - uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
+        with:
+          version: 1.3.0
+      - name: Publish canonical archive to GHCR
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | oras login ghcr.io --username "$REGISTRY_USER" --password-stdin
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          bash scripts/publish-oci.sh "$image" "$RELEASE_TAG"
+
+  github-packages:
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/release-assets
+        with:
+          tag: ${{ inputs.tag || github.event.release.tag_name }}
+          token: ${{ github.token }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          registry-url: https://npm.pkg.github.com
+          scope: '@containersecurity-dev'
+      - name: Publish GitHub npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: node scripts/publish-npm.mjs https://npm.pkg.github.com "$RELEASE_TAG"
+
+  npm:
+    if: vars.NPM_PUBLISH == 'true' && (github.event_name == 'workflow_dispatch' || !github.event.release.prerelease)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/release-assets
+        with:
+          tag: ${{ inputs.tag || github.event.release.tag_name }}
+          token: ${{ github.token }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+      - name: Publish npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          test -n "$NODE_AUTH_TOKEN" || { echo 'NPM_PUBLISH requires NPM_TOKEN'; exit 1; }
+          node scripts/publish-npm.mjs https://registry.npmjs.org "$RELEASE_TAG"
+
+  dockerhub:
+    if: vars.DOCKERHUB_PUBLISH == 'true' && (github.event_name == 'workflow_dispatch' || !github.event.release.prerelease)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/release-assets
+        with:
+          tag: ${{ inputs.tag || github.event.release.tag_name }}
+          token: ${{ github.token }}
+      - uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
+        with:
+          version: 1.3.0
+      - name: Publish canonical archive to Docker Hub
+        env:
+          REGISTRY_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          REGISTRY_USER: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          test -n "$REGISTRY_TOKEN" && test -n "$REGISTRY_USER" && test -n "$DOCKERHUB_REPOSITORY"
+          [[ "$DOCKERHUB_REPOSITORY" =~ ^[a-z0-9_-]+/[a-z0-9_-]+$ ]]
+          printf '%s' "$REGISTRY_TOKEN" | oras login docker.io --username "$REGISTRY_USER" --password-stdin
+          bash scripts/publish-oci.sh "docker.io/$DOCKERHUB_REPOSITORY" "$RELEASE_TAG"
+
+  report:
+    if: always()
+    needs: [ghcr, github-packages, npm, dockerhub]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Record publication results and remaining channels
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          {
+            echo '## Distribution results'
+            echo "$RESULTS" | jq -r 'to_entries[] | "- \(.key): \(.value.result)"'
+            echo '- GitHub release: canonical archives and plugin ZIP.'
+            echo '- skills.sh and SkillsMP: GitHub discovery; no publish API used or listing guarantee.'
+            echo '- Claude and Cursor: plugin ZIP prepared; official directory submission/review remains manual.'
+            echo '- LobeHub: owner claim and interactive OAuth required; not automated.'
+            echo '- ClawHub: excluded because its MIT-0 terms differ from Apache-2.0.'
+            echo 'See DISTRIBUTION.md for credentials, installation, and submission steps.'
+          } >> "$GITHUB_STEP_SUMMARY"

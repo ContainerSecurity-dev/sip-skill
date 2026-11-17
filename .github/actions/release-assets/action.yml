@@ -1,0 +1,34 @@
+name: Verified release assets
+description: Download only stable published release assets and verify their build provenance.
+inputs:
+  tag:
+    required: true
+    description: Stable release tag
+  token:
+    required: true
+    description: Read-only GitHub token
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ github.repository }}
+        RELEASE_TAG: ${{ inputs.tag }}
+      run: |
+        set -euo pipefail
+        [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+        gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,tagName > "$RUNNER_TEMP/release.json"
+        jq -e --arg tag "$RELEASE_TAG" '.isDraft == false and .isPrerelease == false and .tagName == $tag' "$RUNNER_TEMP/release.json"
+        mkdir -p dist
+        version="${RELEASE_TAG#v}"
+        gh release download "$RELEASE_TAG" --dir dist \
+          --pattern "sip-$version.tar.gz" --pattern "sip-npm-$version.tgz" \
+          --pattern "sip-plugin-$version.zip" --pattern SHA256SUMS
+        for file in "dist/sip-$version.tar.gz" "dist/sip-npm-$version.tgz" "dist/sip-plugin-$version.zip"; do
+          gh attestation verify "$file" --repo "$GH_REPO" \
+            --signer-workflow "$GH_REPO/.github/workflows/release.yml" \
+            --source-ref "refs/tags/$RELEASE_TAG"
+        done
+        (cd dist && sha256sum --check SHA256SUMS)
+        echo "### Verified $RELEASE_TAG release assets" >> "$GITHUB_STEP_SUMMARY"

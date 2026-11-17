@@ -2,10 +2,11 @@ name: Prepare draft release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   validate:
@@ -15,16 +16,24 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          ref: ${{ github.ref_name }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
       - name: Validate release tag
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: test "$RELEASE_TAG" = "v$(cat VERSION)"
+        run: |
+          test "$GITHUB_REF_TYPE" = tag
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$RELEASE_TAG" = "v$(cat VERSION)"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
       - run: node --test scripts/*.test.mjs
       - run: python3 scripts/test-package-skill.py
+      - run: python3 scripts/test-package-stores.py
+      - run: python3 scripts/test-publish-oci.py
       - run: python3 scripts/package-skill.py
+      - run: python3 scripts/package-stores.py "dist/sip-$(cat VERSION).tar.gz"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: skill-release
@@ -43,6 +52,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          ref: ${{ github.ref_name }}
       - name: Download the validated artifact from this run
         env:
           GH_TOKEN: ${{ github.token }}
@@ -54,7 +64,10 @@ jobs:
         run: sha256sum --check SHA256SUMS
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
-          subject-path: dist/sip-*.tar.gz
+          subject-path: |
+            dist/sip-*.tar.gz
+            dist/sip-*.tgz
+            dist/sip-*.zip
       - name: Create draft for owner review
         env:
           GH_TOKEN: ${{ github.token }}

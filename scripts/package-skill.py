@@ -11,7 +11,7 @@ import tarfile
 
 FILES = (
     'SKILL.md', 'LICENSE', 'VERSION', 'README.md', 'SECURITY.md',
-    'CHANGELOG.md', 'RELEASING.md', 'agents/openai.yaml',
+    'CHANGELOG.md', 'RELEASING.md', 'DISTRIBUTION.md', 'agents/openai.yaml',
     'references/github-actions.md', 'scripts/validate-lockfile-age.mjs',
     'scripts/validate-lockfile-age.test.mjs',
 )

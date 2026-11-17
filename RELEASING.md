@@ -5,7 +5,7 @@
 1. Review changes to instructions, executable scripts, and references for prompt
    injection, credential exposure, dependency changes, and unnecessary privileges.
 2. Run `node --test scripts/*.test.mjs`,
-   `python3 scripts/test-package-skill.py`, and
+   `python3 scripts/test-package-skill.py`, `python3 scripts/test-package-stores.py`, and
    `python3 scripts/package-skill.py --check`.
 3. Test an audit and an implementation in disposable fixture repositories using
    each client you intend to claim as tested. Record client/version, date, source
@@ -40,8 +40,9 @@ not authenticate the publisher.
 
 After review, commit the changes and push a matching `v<VERSION>` tag. The release
 workflow runs validation and tests, builds once, attests the resulting archive,
-and creates a **draft** GitHub release containing the archive and SHA256SUMS.
-It does not publish a marketplace listing or an OCI artifact. Inspect the draft,
+and creates a **draft** GitHub release containing canonical, npm, and plugin
+archives plus SHA256SUMS. All three archives have build provenance.
+Publishing the draft triggers registry distribution described in DISTRIBUTION.md. Inspect the draft,
 workflow source, provenance, and compatibility evidence before publishing it.
 Never retag an existing release. Failed draft creation should be investigated;
 the workflow intentionally does not overwrite existing releases.
@@ -71,10 +72,10 @@ command here. There are currently **no verified marketplace submissions**.
 Check each platform's current license, packaging, and review requirements before
 submitting. Verify the resulting listing resolves to the intended release.
 
-OCI publication is deferred until a packaging specification and installer are
-selected and tested. A generic tarball in an OCI registry is not automatically
-compatible with either proposal in the article or with agent clients. Preserve
-the canonical skill and add adapters rather than forking the instructions.
+OCI bundle publication and additional registry channels are implemented in
+`distribute.yml`; configuration, retry behavior, and directory-specific limits
+are documented in DISTRIBUTION.md. This bundle uses a project-specific media
+type and does not claim compatibility with emerging OCI skill specifications.
 
 ## Repository settings (owner actions)
 

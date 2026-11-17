@@ -18,6 +18,9 @@ jobs:
           node-version: '22'
       - run: node --test scripts/*.test.mjs
       - run: python3 scripts/test-package-skill.py
+      - run: python3 scripts/test-package-stores.py
+      - run: python3 scripts/test-publish-oci.py
       - run: python3 scripts/package-skill.py --check
       - run: python3 scripts/package-skill.py
+      - run: python3 scripts/package-stores.py "dist/sip-$(cat VERSION).tar.gz"
       - run: git diff --check

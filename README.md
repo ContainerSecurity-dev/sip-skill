@@ -8,6 +8,12 @@ supply-chain framework in containerized software repositories:
 SIP makes targeted repository changes, validates what it can execute, and
 reports host or GitHub settings that require manual authorization.
 
+## License and release status
+
+Licensed under [Apache-2.0](LICENSE). Version `0.1.0` is prepared but unreleased.
+See [release instructions](RELEASING.md), [changes](CHANGELOG.md), and
+[security/permissions](SECURITY.md). No marketplace publication is claimed.
+
 ## Agent Skills compatibility
 
 SIP is a single canonical Agent Skill in this repository (`SKILL.md` plus
@@ -20,6 +26,19 @@ bundled scripts/references). Do not duplicate it into per-client variants.
 | OpenCode | Yes | `.opencode/skills/sip` (native) or compatible paths: `.claude/skills/sip`, `.agents/skills/sip`, and global equivalents | Loaded via OpenCode skill tool when explicitly requested |
 | Google Antigravity | Yes | Project: `.agents/skills/sip`; Global: `~/.gemini/config/skills/sip` | Explicitly request SIP by name |
 | GitHub Copilot | Yes (Copilot cloud agent, code review, CLI/app, VS Code agent mode) | Project: `.github/skills/sip` or `.agents/skills/sip`; Personal: `~/.copilot/skills/sip` or `~/.agents/skills/sip` | Explicitly request SIP by name in chat/agent task |
+
+### Compatibility evidence
+
+The table above describes intended format/install compatibility, not verified
+end-to-end behavior in every client. Client behavior and supported paths must be
+rechecked before publishing compatibility claims.
+
+| Evidence | Status |
+| --- | --- |
+| Canonical skill metadata and `sip/` package structure | Checked by the local packaging validator |
+| Bundled npm validator | Offline regression tests; no live registry trust guarantee |
+| Codex, Claude Code, OpenCode, Antigravity, Copilot execution | Not yet recorded; test client versions and realistic fixtures before claiming support |
+| Marketplace installation and OCI interoperability | Not yet tested or published |
 
 ## Install SIP
 
@@ -238,3 +257,19 @@ After implementation, the agent reports:
 - protected-environment and required-check configuration still needed;
 - whether the gate extracted and scanned the attached SPDX document; and
 - whether promotion references exactly the digest that passed the gate.
+
+## Maintainer checks
+
+No dependency installation is needed for these offline checks:
+
+```bash
+node --test scripts/*.test.mjs
+python3 scripts/test-package-skill.py
+python3 scripts/package-skill.py --check
+python3 scripts/package-skill.py
+```
+
+The archive installs as `sip/`, matching `name: sip`; do not install the source
+checkout under a `sip-skill/` discovery directory. Release archives include a
+file inventory and checksum file. Verify hosted provenance when available as
+described in [RELEASING.md](RELEASING.md).

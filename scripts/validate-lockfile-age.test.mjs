@@ -161,3 +161,30 @@ test('stalled registry requests time out and fail closed', async () => {
     /timed out after 5ms/,
   );
 });
+
+
+test('malformed entries cannot silently bypass validation', () => {
+  for (const metadata of [null, {}, { resolved: 'https://example.invalid/a.tgz' }]) {
+    const lockfile = fixture();
+    lockfile.packages['node_modules/unchecked'] = metadata;
+    assert.throws(() => collectDependencies(lockfile), /Invalid lockfile entry|Missing locked version/);
+  }
+});
+
+test('programmatic callers cannot disable cooldown with an invalid age', async () => {
+  await assert.rejects(validateLockfile({ lockfile: fixture(), minimumAgeDays: NaN }), /positive integer/);
+});
+
+test('registry body failures are retried within the request limit', async () => {
+  let calls = 0;
+  const result = await validateLockfile({
+    lockfile: fixture(), now, retries: 1,
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) return { ok: true, json: async () => { throw new Error('broken body'); } };
+      return response(registryMetadata());
+    },
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.validatedCount, 1);
+});

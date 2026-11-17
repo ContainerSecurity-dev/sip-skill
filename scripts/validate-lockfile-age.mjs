@@ -38,7 +38,14 @@ export function collectDependencies(lockfile) {
 
   const dependencies = [];
   for (const [path, metadata] of Object.entries(lockfile.packages)) {
-    if (!path || !metadata.version || metadata.link) continue;
+    if (!path) continue;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      throw new Error(`Invalid lockfile entry: ${path}`);
+    }
+    if (metadata.link === true) continue;
+    if (typeof metadata.version !== 'string' || !metadata.version) {
+      throw new Error(`Missing locked version: ${path}`);
+    }
     const marker = 'node_modules/';
     const markerIndex = path.lastIndexOf(marker);
     if (markerIndex < 0) continue;
@@ -66,7 +73,7 @@ async function fetchPackageMetadata(name, { fetchImpl, timeoutMs, retries }) {
         headers: { accept: 'application/json' },
         signal: AbortSignal.timeout(timeoutMs),
       });
-      if (response.ok) return response.json();
+      if (response.ok) return await response.json();
       lastError = new Error(`HTTP ${response.status}`);
       if (!transientStatuses.has(response.status)) break;
     } catch (error) {
@@ -91,6 +98,7 @@ export async function validateLockfile({
   timeoutMs = 15_000,
   retries = 2,
 }) {
+  minimumAgeDays = parseMinimumAge(String(minimumAgeDays));
   const dependencies = collectDependencies(lockfile);
   const exclusions = parseExclusions(npmrc);
   const cutoff = now - minimumAgeDays * 24 * 60 * 60 * 1000;

@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.1 — Unreleased
+## 1.0.0 — 2026-11-17
+
+First stable release of SIP and its verified distribution pipeline.
 
 - Add verified multi-store distribution after GitHub release publication.
 - Support GHCR, GitHub Packages, optional npm and optional Docker Hub.
@@ -8,9 +10,7 @@
 - Add manual draft/retry triggers and immutable-version collision checks.
 - Keep Apache-2.0; exclude ClawHub and document directory submission limits.
 
-## 0.1.0 — Unreleased
-
-Initial versioned distribution preparation; no release has been published.
+### Included foundational changes
 
 - Add Apache-2.0 licensing and explicit trust/authorization boundaries.
 - Document tool permissions, compatibility evidence, security reporting, and maintenance.

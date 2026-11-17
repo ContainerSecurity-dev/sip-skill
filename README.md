@@ -10,7 +10,7 @@ reports host or GitHub settings that require manual authorization.
 
 ## License and release status
 
-Licensed under [Apache-2.0](LICENSE). Version `0.1.1` is prepared but unreleased.
+Licensed under [Apache-2.0](LICENSE). Version `1.0.0` is the first stable release.
 See [release instructions](RELEASING.md), [changes](CHANGELOG.md), and
 [security/permissions](SECURITY.md). See [distribution channels and setup](DISTRIBUTION.md). No marketplace publication is claimed.
 
